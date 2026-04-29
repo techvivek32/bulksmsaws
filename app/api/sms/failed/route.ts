@@ -9,9 +9,23 @@ export async function GET(req: NextRequest) {
   }
 
   await connectDB();
-  const messages = await SMS.find({ status: 'failed' })
+
+  const { searchParams } = new URL(req.url);
+  const campaign = searchParams.get('campaign') || '';
+  const from     = searchParams.get('from') || '';
+  const to       = searchParams.get('to') || '';
+
+  const query: any = { status: 'failed' };
+  if (campaign) query.campaign = campaign;
+  if (from || to) {
+    query.createdAt = {};
+    if (from) query.createdAt.$gte = new Date(from);
+    if (to)   query.createdAt.$lte = new Date(to + 'T23:59:59');
+  }
+
+  const messages = await SMS.find(query)
     .sort({ createdAt: -1 })
-    .select('phone message status error createdAt campaign');
+    .select('phone patientName message status error createdAt campaign');
 
   return NextResponse.json({ messages });
 }

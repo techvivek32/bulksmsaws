@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { Download, Search, ChevronRight, ArrowLeft, Send } from 'lucide-react';
+import { Download, Search, ChevronRight, ArrowLeft, Send, Trash2 } from 'lucide-react';
 import StatusBadge from '@/components/StatusBadge';
 import { format } from 'date-fns';
 
@@ -38,16 +38,19 @@ function CampaignList({ onSelect }: { onSelect: (name: string) => void }) {
   const [status, setStatus]       = useState('all');
   const [from, setFrom]           = useState('');
   const [to, setTo]               = useState('');
+  const [selected, setSelected]   = useState<Set<string>>(new Set());
+  const [deleting, setDeleting]   = useState(false);
 
-  const fetchCampaigns = async () => {
+  const fetchCampaigns = async (s = status, f = from, t = to) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (status !== 'all') params.set('status', status);
-      if (from) params.set('from', from);
-      if (to)   params.set('to', to);
+      if (s !== 'all') params.set('status', s);
+      if (f) params.set('from', f);
+      if (t) params.set('to', t);
       const res = await axios.get(`/api/reports/campaigns?${params}`);
       setCampaigns(res.data.campaigns);
+      setSelected(new Set());
     } catch {
       toast.error('Failed to load campaigns');
     } finally {
@@ -58,23 +61,64 @@ function CampaignList({ onSelect }: { onSelect: (name: string) => void }) {
   useEffect(() => { fetchCampaigns(); }, []);
 
   const handleReset = () => {
-    setStatus('all');
-    setFrom('');
-    setTo('');
-    // fetch with cleared values directly
-    setLoading(true);
-    axios.get('/api/reports/campaigns')
-      .then((r) => setCampaigns(r.data.campaigns))
-      .catch(() => toast.error('Failed to load campaigns'))
-      .finally(() => setLoading(false));
+    setStatus('all'); setFrom(''); setTo('');
+    fetchCampaigns('all', '', '');
   };
+
+  /* ── Select ── */
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+  const toggleAll = () =>
+    setSelected(selected.size === campaigns.length ? new Set() : new Set(campaigns.map((c) => c._id)));
+
+  /* ── Delete campaigns (deletes all SMS records for those campaigns) ── */
+  const handleDelete = async (campaignNames: string[]) => {
+    if (!campaignNames.length) return;
+    if (!confirm(`Delete all SMS records for ${campaignNames.length} campaign(s)? This cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      await axios.post('/api/reports/campaigns/delete', { campaigns: campaignNames });
+      toast.success('Campaigns deleted');
+      setSelected(new Set());
+      fetchCampaigns();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || 'Delete failed');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const selectedIds = Array.from(selected);
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800">Reports</h1>
-        <p className="text-gray-500 text-sm">{campaigns.length} campaign{campaigns.length !== 1 ? 's' : ''}</p>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">Reports</h1>
+          <p className="text-gray-500 text-sm">{campaigns.length} campaign{campaigns.length !== 1 ? 's' : ''}</p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {selected.size > 0 && (
+            <button onClick={() => handleDelete(selectedIds)} disabled={deleting}
+              className="flex items-center gap-2 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium">
+              <Trash2 size={16} />
+              Delete Selected ({selected.size})
+            </button>
+          )}
+          {campaigns.length > 0 && (
+            <button onClick={() => handleDelete(campaigns.map((c) => c._id))} disabled={deleting}
+              className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium">
+              <Trash2 size={16} />
+              Delete All
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -109,7 +153,7 @@ function CampaignList({ onSelect }: { onSelect: (name: string) => void }) {
           />
         </div>
         <button
-          onClick={fetchCampaigns}
+          onClick={() => fetchCampaigns()}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
         >
           <Search size={16} /> Search
@@ -133,45 +177,48 @@ function CampaignList({ onSelect }: { onSelect: (name: string) => void }) {
         </div>
       ) : (
         <div className="space-y-3">
+          {/* Select all row */}
+          <div className="flex items-center gap-3 px-2">
+            <input type="checkbox"
+              checked={selected.size === campaigns.length && campaigns.length > 0}
+              onChange={toggleAll} className="rounded" />
+            <span className="text-sm text-gray-500">Select all ({campaigns.length})</span>
+          </div>
           {campaigns.map((c) => (
-            <button
-              key={c._id}
-              onClick={() => onSelect(c._id)}
-              className="w-full bg-white rounded-xl p-5 shadow-sm border border-gray-100 hover:border-blue-300 hover:shadow-md transition-all text-left flex items-center gap-4"
-            >
-              <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
-                <Send size={20} className="text-blue-600" />
-              </div>
+            <div key={c._id} className={`bg-white rounded-xl p-5 shadow-sm border transition-all flex items-center gap-4 ${selected.has(c._id) ? 'border-blue-300 bg-blue-50' : 'border-gray-100 hover:border-blue-200'}`}>
+              {/* Checkbox */}
+              <input type="checkbox" checked={selected.has(c._id)}
+                onChange={() => toggleSelect(c._id)}
+                onClick={(e) => e.stopPropagation()}
+                className="rounded flex-shrink-0" />
 
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-800 truncate">{c._id}</p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {format(new Date(c.firstSent), 'MMM dd, yyyy HH:mm')}
-                  {c.firstSent !== c.lastSent && ` – ${format(new Date(c.lastSent), 'MMM dd, yyyy HH:mm')}`}
-                </p>
-              </div>
+              {/* Clickable area → open detail */}
+              <button onClick={() => onSelect(c._id)} className="flex items-center gap-4 flex-1 min-w-0 text-left">
+                <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+                  <Send size={20} className="text-blue-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-800 truncate">{c._id}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {format(new Date(c.firstSent), 'MMM dd, yyyy HH:mm')}
+                    {c.firstSent !== c.lastSent && ` – ${format(new Date(c.lastSent), 'MMM dd, yyyy HH:mm')}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-4 flex-shrink-0">
+                  <div className="text-center"><p className="text-sm font-bold text-gray-700">{c.total}</p><p className="text-xs text-gray-400">Total</p></div>
+                  <div className="text-center"><p className="text-sm font-bold text-green-600">{c.sent}</p><p className="text-xs text-gray-400">Sent</p></div>
+                  <div className="text-center"><p className="text-sm font-bold text-red-500">{c.failed}</p><p className="text-xs text-gray-400">Failed</p></div>
+                  <div className="text-center"><p className="text-sm font-bold text-yellow-500">{c.pending}</p><p className="text-xs text-gray-400">Pending</p></div>
+                </div>
+                <ChevronRight size={18} className="text-gray-400 flex-shrink-0" />
+              </button>
 
-              <div className="flex items-center gap-4 flex-shrink-0">
-                <div className="text-center">
-                  <p className="text-sm font-bold text-gray-700">{c.total}</p>
-                  <p className="text-xs text-gray-400">Total</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-bold text-green-600">{c.sent}</p>
-                  <p className="text-xs text-gray-400">Sent</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-bold text-red-500">{c.failed}</p>
-                  <p className="text-xs text-gray-400">Failed</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-bold text-yellow-500">{c.pending}</p>
-                  <p className="text-xs text-gray-400">Pending</p>
-                </div>
-              </div>
-
-              <ChevronRight size={18} className="text-gray-400 flex-shrink-0" />
-            </button>
+              {/* Row delete */}
+              <button onClick={() => handleDelete([c._id])} disabled={deleting}
+                className="text-red-400 hover:text-red-600 p-1.5 rounded hover:bg-red-50 transition-colors flex-shrink-0">
+                <Trash2 size={16} />
+              </button>
+            </div>
           ))}
         </div>
       )}
