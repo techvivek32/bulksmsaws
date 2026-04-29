@@ -1,214 +1,303 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { Inbox, RefreshCw, Trash2, Search } from 'lucide-react';
-import { format } from 'date-fns';
+import { Inbox, RefreshCw, Send, Search, MessageSquare } from 'lucide-react';
+import { format, isToday, isYesterday } from 'date-fns';
 
-interface InboundMsg {
+/* ── Types ── */
+interface Contact {
+  _id: string;       // phone number
+  patientName: string;
+  lastMessage: string;
+  lastTime: string;
+  count: number;
+}
+
+interface ChatMessage {
   _id: string;
-  from: string;
-  to: string;
-  message: string;
+  direction: 'inbound' | 'outbound';
+  text: string;
   timestamp: string;
 }
 
+/* ── Helpers ── */
+function formatTime(ts: string) {
+  const d = new Date(ts);
+  if (isToday(d))     return format(d, 'HH:mm');
+  if (isYesterday(d)) return 'Yesterday';
+  return format(d, 'MMM dd');
+}
+
+function formatFullTime(ts: string) {
+  return format(new Date(ts), 'MMM dd, yyyy HH:mm');
+}
+
+/* ══════════════════════════════════════════════
+   MAIN INBOX PAGE
+══════════════════════════════════════════════ */
 export default function InboxPage() {
   const router = useRouter();
-  const [messages, setMessages]   = useState<InboundMsg[]>([]);
-  const [filtered, setFiltered]   = useState<InboundMsg[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [authorized, setAuthorized] = useState(false);
-  const [selected, setSelected]   = useState<Set<string>>(new Set());
-  const [deleting, setDeleting]   = useState(false);
+  const [authorized, setAuthorized]       = useState(false);
+  const [contacts, setContacts]           = useState<Contact[]>([]);
+  const [filteredContacts, setFiltered]   = useState<Contact[]>([]);
+  const [activePhone, setActivePhone]     = useState<string | null>(null);
+  const [messages, setMessages]           = useState<ChatMessage[]>([]);
+  const [reply, setReply]                 = useState('');
+  const [sending, setSending]             = useState(false);
+  const [loadingContacts, setLoadingContacts] = useState(true);
+  const [loadingChat, setLoadingChat]     = useState(false);
+  const [searchQ, setSearchQ]             = useState('');
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef  = useRef<HTMLTextAreaElement>(null);
 
-  // Filters (client-side since inbox is small)
-  const [search, setSearch]       = useState('');
-  const [from, setFrom]           = useState('');
-  const [to, setTo]               = useState('');
-
+  /* ── Auth ── */
   useEffect(() => {
-    axios.get('/api/auth/me').then((res) => {
-      if (!res.data.role) router.replace('/login');
-      else setAuthorized(true);
-    }).catch(() => router.replace('/login'));
+    axios.get('/api/auth/me')
+      .then((r) => { if (!r.data.role) router.replace('/login'); else setAuthorized(true); })
+      .catch(() => router.replace('/login'));
   }, [router]);
 
-  const fetchMessages = async () => {
+  /* ── Load contacts ── */
+  const fetchContacts = async () => {
     try {
-      const res = await axios.get('/api/inbound-sms');
-      setMessages(res.data.messages);
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
+      const res = await axios.get('/api/chat?contacts=1');
+      setContacts(res.data.contacts);
+    } catch { /* silent */ }
+    finally { setLoadingContacts(false); }
   };
 
   useEffect(() => {
     if (!authorized) return;
-    fetchMessages();
-    const interval = setInterval(fetchMessages, 15000);
-    return () => clearInterval(interval);
+    fetchContacts();
+    const iv = setInterval(fetchContacts, 15000);
+    return () => clearInterval(iv);
   }, [authorized]);
 
-  // Apply filters whenever messages or filter values change
+  /* ── Filter contacts by search ── */
   useEffect(() => {
-    let result = [...messages];
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter((m) =>
-        m.from.toLowerCase().includes(q) || m.message.toLowerCase().includes(q)
-      );
-    }
-    if (from) result = result.filter((m) => new Date(m.timestamp) >= new Date(from));
-    if (to)   result = result.filter((m) => new Date(m.timestamp) <= new Date(to + 'T23:59:59'));
-    setFiltered(result);
-    setSelected(new Set());
-  }, [messages, search, from, to]);
+    if (!searchQ.trim()) { setFiltered(contacts); return; }
+    const q = searchQ.toLowerCase();
+    setFiltered(contacts.filter((c) => c._id.includes(q) || c.lastMessage.toLowerCase().includes(q) || c.patientName.toLowerCase().includes(q)));
+  }, [contacts, searchQ]);
 
-  const handleReset = () => { setSearch(''); setFrom(''); setTo(''); };
-
-  /* ── Select ── */
-  const toggleSelect = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-  const toggleAll = () =>
-    setSelected(selected.size === filtered.length ? new Set() : new Set(filtered.map((m) => m._id)));
-
-  /* ── Delete ── */
-  const handleDelete = async (ids: string[]) => {
-    if (!ids.length) return;
-    if (!confirm(`Delete ${ids.length} message(s)? This cannot be undone.`)) return;
-    setDeleting(true);
+  /* ── Load conversation ── */
+  const fetchConversation = async (phone: string) => {
+    setLoadingChat(true);
     try {
-      await axios.post('/api/inbound-sms/delete', { ids });
-      toast.success(`${ids.length} message(s) deleted`);
-      setSelected(new Set());
-      await fetchMessages();
+      const res = await axios.get(`/api/chat?phone=${encodeURIComponent(phone)}`);
+      setMessages(res.data.messages);
+    } catch { toast.error('Failed to load conversation'); }
+    finally { setLoadingChat(false); }
+  };
+
+  const openChat = (phone: string) => {
+    setActivePhone(phone);
+    setReply('');
+    fetchConversation(phone);
+  };
+
+  /* ── Poll active conversation ── */
+  useEffect(() => {
+    if (!activePhone) return;
+    const iv = setInterval(() => fetchConversation(activePhone), 10000);
+    return () => clearInterval(iv);
+  }, [activePhone]);
+
+  /* ── Scroll to bottom on new messages ── */
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  /* ── Send reply ── */
+  const handleSend = async () => {
+    if (!reply.trim() || !activePhone || sending) return;
+    setSending(true);
+    try {
+      await axios.post('/api/chat', { to: activePhone, message: reply.trim() });
+      setReply('');
+      await fetchConversation(activePhone);
+      await fetchContacts();
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Delete failed');
+      toast.error(err?.response?.data?.error || 'Failed to send');
     } finally {
-      setDeleting(false);
+      setSending(false);
+      inputRef.current?.focus();
     }
   };
 
-  const selectedIds = Array.from(selected);
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  };
+
+  if (!authorized) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Inbox</h1>
-          <p className="text-gray-500 text-sm">
-            {filtered.length} message{filtered.length !== 1 ? 's' : ''}
-            {filtered.length !== messages.length && ` (filtered from ${messages.length})`}
-          </p>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          {selected.size > 0 && (
-            <button onClick={() => handleDelete(selectedIds)} disabled={deleting}
-              className="flex items-center gap-2 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium">
-              <Trash2 size={16} />
-              Delete Selected ({selected.size})
+    <div className="flex h-screen overflow-hidden bg-gray-100">
+
+      {/* ── LEFT: Contact List ── */}
+      <div className="w-80 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col">
+        {/* Header */}
+        <div className="px-4 py-4 border-b border-gray-100">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-bold text-gray-800 text-lg">Inbox</h2>
+            <button onClick={fetchContacts} className="text-gray-400 hover:text-gray-600 p-1 rounded">
+              <RefreshCw size={16} />
             </button>
+          </div>
+          {/* Search */}
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchQ}
+              onChange={(e) => setSearchQ(e.target.value)}
+              placeholder="Search contacts..."
+              className="w-full pl-9 pr-3 py-2 bg-gray-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
+        {/* Contact list */}
+        <div className="flex-1 overflow-y-auto">
+          {loadingContacts ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
+            </div>
+          ) : filteredContacts.length === 0 ? (
+            <div className="text-center py-12 px-4">
+              <Inbox size={36} className="mx-auto text-gray-300 mb-2" />
+              <p className="text-gray-400 text-sm">No messages yet</p>
+            </div>
+          ) : (
+            filteredContacts.map((c) => (
+              <button
+                key={c._id}
+                onClick={() => openChat(c._id)}
+                className={`w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors border-b border-gray-50 text-left ${
+                  activePhone === c._id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                }`}
+              >
+                {/* Avatar */}
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                  {(c.patientName || c._id).slice(0, 2).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-gray-800 text-sm truncate">
+                      {c.patientName || c._id}
+                    </p>
+                    <p className="text-xs text-gray-400 flex-shrink-0 ml-1">{formatTime(c.lastTime)}</p>
+                  </div>
+                  {c.patientName && (
+                    <p className="text-xs text-gray-400 truncate">{c._id}</p>
+                  )}
+                  <p className="text-xs text-gray-500 truncate mt-0.5">{c.lastMessage}</p>
+                </div>
+                {/* Unread badge */}
+                <div className="w-5 h-5 rounded-full bg-green-500 text-white text-xs flex items-center justify-center flex-shrink-0">
+                  {c.count > 9 ? '9+' : c.count}
+                </div>
+              </button>
+            ))
           )}
-          <button onClick={() => handleDelete(filtered.map((m) => m._id))} disabled={deleting || !filtered.length}
-            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium">
-            <Trash2 size={16} />
-            Delete All
-          </button>
-          <button onClick={fetchMessages}
-            className="flex items-center gap-2 border border-gray-300 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm text-gray-600">
-            <RefreshCw size={16} />
-            Refresh
-          </button>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 flex flex-wrap gap-3 items-end">
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">Search (from / message)</label>
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Phone or keyword..."
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-48" />
-        </div>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">From Date</label>
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">To Date</label>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <button onClick={handleReset}
-          className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
-          Reset
-        </button>
-      </div>
+      {/* ── RIGHT: Chat Window ── */}
+      <div className="flex-1 flex flex-col">
+        {activePhone ? (
+          <>
+            {/* Chat header */}
+            <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white flex items-center justify-center font-bold text-sm">
+                {(contacts.find((c) => c._id === activePhone)?.patientName || activePhone || '').slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <p className="font-semibold text-gray-800">
+                  {contacts.find((c) => c._id === activePhone)?.patientName || activePhone}
+                </p>
+                <p className="text-xs text-gray-400">
+                  {contacts.find((c) => c._id === activePhone)?.patientName ? activePhone : 'SMS conversation'}
+                </p>
+              </div>
+            </div>
 
-      {/* Content */}
-      {(!authorized || loading) ? (
-        <div className="flex items-center justify-center py-16">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-xl p-16 text-center shadow-sm border border-gray-100">
-          <Inbox size={48} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-400">{messages.length === 0 ? 'No inbound messages yet' : 'No messages match your filters'}</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="px-4 py-3 text-left w-10">
-                  <input type="checkbox"
-                    checked={selected.size === filtered.length && filtered.length > 0}
-                    onChange={toggleAll} className="rounded" />
-                </th>
-                <th className="px-4 py-3 text-left text-gray-500 font-medium">From</th>
-                <th className="px-4 py-3 text-left text-gray-500 font-medium">To</th>
-                <th className="px-4 py-3 text-left text-gray-500 font-medium">Message</th>
-                <th className="px-4 py-3 text-left text-gray-500 font-medium">Date & Time</th>
-                <th className="px-4 py-3 text-left text-gray-500 font-medium">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filtered.map((msg) => (
-                <tr key={msg._id} className={`hover:bg-gray-50 ${selected.has(msg._id) ? 'bg-blue-50' : ''}`}>
-                  <td className="px-4 py-3">
-                    <input type="checkbox" checked={selected.has(msg._id)}
-                      onChange={() => toggleSelect(msg._id)} className="rounded" />
-                  </td>
-                  <td className="px-4 py-3 font-medium text-gray-800">{msg.from}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{msg.to || '—'}</td>
-                  <td className="px-4 py-3 text-gray-600 max-w-sm truncate">{msg.message}</td>
-                  <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
-                    {format(new Date(msg.timestamp), 'MMM dd yyyy, HH:mm')}
-                  </td>
-                  <td className="px-4 py-3">
-                    <button onClick={() => handleDelete([msg._id])}
-                      className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors">
-                      <Trash2 size={15} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
+              {loadingChat ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="text-center py-12 text-gray-400 text-sm">No messages yet</div>
+              ) : (
+                messages.map((msg) => (
+                  <div
+                    key={msg._id}
+                    className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-xs lg:max-w-md px-4 py-2.5 rounded-2xl text-sm shadow-sm ${
+                        msg.direction === 'outbound'
+                          ? 'bg-blue-600 text-white rounded-br-sm'
+                          : 'bg-white text-gray-800 rounded-bl-sm border border-gray-100'
+                      }`}
+                    >
+                      <p className="leading-relaxed">{msg.text}</p>
+                      <p className={`text-xs mt-1 ${msg.direction === 'outbound' ? 'text-blue-200' : 'text-gray-400'} text-right`}>
+                        {formatFullTime(msg.timestamp)}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={bottomRef} />
+            </div>
+
+            {/* Reply input */}
+            <div className="bg-white border-t border-gray-200 px-4 py-3 flex items-end gap-3">
+              <textarea
+                ref={inputRef}
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
+                rows={1}
+                className="flex-1 resize-none px-4 py-2.5 bg-gray-100 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-h-32 overflow-y-auto"
+                style={{ minHeight: '42px' }}
+              />
+              <button
+                onClick={handleSend}
+                disabled={!reply.trim() || sending}
+                className="w-10 h-10 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-full flex items-center justify-center flex-shrink-0 transition-colors"
+              >
+                {sending
+                  ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : <Send size={16} />
+                }
+              </button>
+            </div>
+          </>
+        ) : (
+          /* Empty state */
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
+            <div className="w-20 h-20 rounded-full bg-blue-50 flex items-center justify-center mb-4">
+              <MessageSquare size={36} className="text-blue-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-700 mb-1">Select a conversation</h3>
+            <p className="text-gray-400 text-sm">Click a contact on the left to open the chat</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
