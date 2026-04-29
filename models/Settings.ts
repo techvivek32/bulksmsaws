@@ -5,14 +5,22 @@ export interface ISettings extends Document {
   senderNumber: string;
   dailyLimit: number;
   messageTemplate: string;
+  twilioAccountSid: string;
+  twilioAuthToken: string;
+  twilioWhatsappFrom: string;
+  whatsappAlertNumbers: string; // comma-separated
 }
 
 const SettingsSchema = new Schema<ISettings>(
   {
-    apiKey: { type: String, default: '' },
-    senderNumber: { type: String, default: '' },
-    dailyLimit: { type: Number, default: 2000 },
-    messageTemplate: { type: String, default: '' },
+    apiKey:               { type: String, default: '' },
+    senderNumber:         { type: String, default: '' },
+    dailyLimit:           { type: Number, default: 2000 },
+    messageTemplate:      { type: String, default: '' },
+    twilioAccountSid:     { type: String, default: '' },
+    twilioAuthToken:      { type: String, default: '' },
+    twilioWhatsappFrom:   { type: String, default: 'whatsapp:+14155238886' },
+    whatsappAlertNumbers: { type: String, default: '' },
   },
   { timestamps: true }
 );

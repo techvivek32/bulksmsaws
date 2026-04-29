@@ -13,6 +13,10 @@ export default function SettingsPage() {
   const [senderNumber, setSenderNumber] = useState('');
   const [dailyLimit, setDailyLimit] = useState(2000);
   const [messageTemplate, setMessageTemplate] = useState('');
+  const [twilioAccountSid, setTwilioAccountSid] = useState('');
+  const [twilioAuthToken, setTwilioAuthToken] = useState('');
+  const [twilioWhatsappFrom, setTwilioWhatsappFrom] = useState('whatsapp:+14155238886');
+  const [whatsappAlertNumbers, setWhatsappAlertNumbers] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -27,6 +31,10 @@ export default function SettingsPage() {
           setSenderNumber(r.data.senderNumber || '');
           setDailyLimit(r.data.dailyLimit || 2000);
           setMessageTemplate(r.data.messageTemplate || '');
+          setTwilioAccountSid(r.data.twilioAccountSid || '');
+          setTwilioAuthToken(r.data.twilioAuthToken || '');
+          setTwilioWhatsappFrom(r.data.twilioWhatsappFrom || 'whatsapp:+14155238886');
+          setWhatsappAlertNumbers(r.data.whatsappAlertNumbers || '');
         }).finally(() => setLoading(false));
       }
     }).catch(() => router.replace('/login'));
@@ -36,7 +44,10 @@ export default function SettingsPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await axios.post('/api/settings', { apiKey, senderNumber, dailyLimit, messageTemplate });
+      await axios.post('/api/settings', {
+        apiKey, senderNumber, dailyLimit, messageTemplate,
+        twilioAccountSid, twilioAuthToken, twilioWhatsappFrom, whatsappAlertNumbers,
+      });
       toast.success('Settings saved successfully');
     } catch (err: any) {
       toast.error(err?.response?.data?.error || 'Save failed');
@@ -133,6 +144,65 @@ export default function SettingsPage() {
           >
             <Save size={16} />
             {saving ? 'Saving...' : 'Save Settings'}
+          </button>
+        </div>
+      </form>
+
+      {/* WhatsApp Notifications Section */}
+      <form onSubmit={handleSave} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 space-y-5">
+        <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
+          <span className="text-lg">💬</span>
+          <h2 className="font-semibold text-gray-700">WhatsApp Alert Notifications</h2>
+        </div>
+        <p className="text-xs text-gray-400 -mt-2">
+          When a patient replies via SMS, an alert is automatically sent to admin WhatsApp numbers via Twilio.
+        </p>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Twilio Account SID</label>
+          <input type="text" value={twilioAccountSid}
+            onChange={(e) => setTwilioAccountSid(e.target.value)}
+            placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm font-mono"
+          />
+          <p className="text-xs text-gray-400 mt-1">From your <a href="https://console.twilio.com" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Twilio Console</a> dashboard</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Twilio Auth Token</label>
+          <input type="password" value={twilioAuthToken}
+            onChange={(e) => setTwilioAuthToken(e.target.value)}
+            placeholder="Leave blank to keep existing token"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm font-mono"
+          />
+          <p className="text-xs text-gray-400 mt-1">Click the eye icon on Twilio Console to reveal it</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Twilio WhatsApp From Number</label>
+          <input type="text" value={twilioWhatsappFrom}
+            onChange={(e) => setTwilioWhatsappFrom(e.target.value)}
+            placeholder="whatsapp:+14155238886"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm font-mono"
+          />
+          <p className="text-xs text-gray-400 mt-1">Twilio sandbox default: <code className="bg-gray-100 px-1 rounded">whatsapp:+14155238886</code></p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Admin WhatsApp Alert Numbers</label>
+          <input type="text" value={whatsappAlertNumbers}
+            onChange={(e) => setWhatsappAlertNumbers(e.target.value)}
+            placeholder="+16024300940, +9601176051"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
+          />
+          <p className="text-xs text-gray-400 mt-1">Comma-separated numbers in E.164 format. Each number must have joined the Twilio sandbox first by sending <code className="bg-gray-100 px-1 rounded">join mouse-bet</code> to <strong>+14155238886</strong> on WhatsApp.</p>
+        </div>
+
+        <div className="pt-2">
+          <button type="submit" disabled={saving}
+            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors">
+            <Save size={16} />
+            {saving ? 'Saving...' : 'Save WhatsApp Settings'}
           </button>
         </div>
       </form>

@@ -10,16 +10,23 @@ export async function GET(req: NextRequest) {
 
   await connectDB();
   const settings = await Settings.findOne();
-  // Mask API key for display
+  // Mask sensitive fields for display
   const masked = settings?.apiKey
     ? settings.apiKey.slice(0, 6) + '••••••••' + settings.apiKey.slice(-4)
     : '';
+  const maskedTwilioToken = settings?.twilioAuthToken
+    ? settings.twilioAuthToken.slice(0, 4) + '••••••••' + settings.twilioAuthToken.slice(-4)
+    : '';
 
   return NextResponse.json({
-    apiKey: masked,
-    senderNumber: settings?.senderNumber || '',
-    dailyLimit: settings?.dailyLimit || 2000,
-    messageTemplate: settings?.messageTemplate || '',
+    apiKey:               masked,
+    senderNumber:         settings?.senderNumber         || '',
+    dailyLimit:           settings?.dailyLimit           || 2000,
+    messageTemplate:      settings?.messageTemplate      || '',
+    twilioAccountSid:     settings?.twilioAccountSid     || '',
+    twilioAuthToken:      maskedTwilioToken,
+    twilioWhatsappFrom:   settings?.twilioWhatsappFrom   || 'whatsapp:+14155238886',
+    whatsappAlertNumbers: settings?.whatsappAlertNumbers || '',
   });
 }
 
@@ -29,13 +36,15 @@ export async function POST(req: NextRequest) {
   if (user.role !== 'master_admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   await connectDB();
-  const { apiKey, senderNumber, dailyLimit, messageTemplate } = await req.json();
+  const { apiKey, senderNumber, dailyLimit, messageTemplate,
+          twilioAccountSid, twilioAuthToken, twilioWhatsappFrom, whatsappAlertNumbers } = await req.json();
 
-  const update: any = { senderNumber, dailyLimit, messageTemplate };
-  // Only update API key if it's not the masked placeholder
-  if (apiKey && !apiKey.includes('••••')) {
-    update.apiKey = apiKey;
-  }
+  const update: any = { senderNumber, dailyLimit, messageTemplate,
+                        twilioWhatsappFrom, whatsappAlertNumbers };
+
+  if (apiKey && !apiKey.includes('••••'))             update.apiKey           = apiKey;
+  if (twilioAccountSid)                               update.twilioAccountSid = twilioAccountSid;
+  if (twilioAuthToken && !twilioAuthToken.includes('••••')) update.twilioAuthToken = twilioAuthToken;
 
   const settings = await Settings.findOneAndUpdate({}, update, { upsert: true, new: true });
   return NextResponse.json({ success: true, settings });

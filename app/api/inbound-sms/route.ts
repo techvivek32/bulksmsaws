@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongodb';
 import { getUserFromRequest } from '@/lib/auth';
 import Inbound from '@/models/Inbound';
+import SMS from '@/models/SMS';
+import { sendWhatsAppAlert } from '@/lib/whatsapp';
 
 // Telnyx webhook for inbound SMS
 export async function POST(req: NextRequest) {
@@ -61,6 +63,19 @@ export async function POST(req: NextRequest) {
       telnyxMessageId: messageId,
       timestamp: new Date(),
     });
+
+    // Look up patient name from SMS records
+    const smsRecord = await SMS.findOne({ phone: from }).select('patientName').lean() as any;
+    const patientName = smsRecord?.patientName || '';
+
+    // Send WhatsApp alert to admins (non-blocking)
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bulksmsaws.vercel.app';
+    sendWhatsAppAlert({
+      patientName,
+      patientPhone: from || 'unknown',
+      message: text || '(no text)',
+      inboxUrl: `${appUrl}/inbox`,
+    }).catch(() => {});
 
     return NextResponse.json({ received: true });
   } catch (err: any) {
