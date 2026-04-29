@@ -9,11 +9,11 @@ import { format, isToday, isYesterday } from 'date-fns';
 
 /* ── Types ── */
 interface Contact {
-  _id: string;       // phone number
+  _id: string;
   patientName: string;
   lastMessage: string;
   lastTime: string;
-  count: number;
+  unread: number;
 }
 
 interface ChatMessage {
@@ -96,6 +96,8 @@ export default function InboxPage() {
   const openChat = (phone: string) => {
     setActivePhone(phone);
     setReply('');
+    // Instantly clear unread badge on client side
+    setContacts((prev) => prev.map((c) => c._id === phone ? { ...c, unread: 0 } : c));
     fetchConversation(phone);
   };
 
@@ -202,10 +204,12 @@ export default function InboxPage() {
                   )}
                   <p className="text-xs text-gray-500 truncate mt-0.5">{c.lastMessage}</p>
                 </div>
-                {/* Unread badge */}
-                <div className="w-5 h-5 rounded-full bg-green-500 text-white text-xs flex items-center justify-center flex-shrink-0">
-                  {c.count > 9 ? '9+' : c.count}
-                </div>
+                {/* Unread badge — only show if unread > 0 */}
+                {c.unread > 0 && (
+                  <div className="w-5 h-5 rounded-full bg-green-500 text-white text-xs flex items-center justify-center flex-shrink-0">
+                    {c.unread > 9 ? '9+' : c.unread}
+                  </div>
+                )}
               </button>
             ))
           )}

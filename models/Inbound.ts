@@ -6,19 +6,22 @@ export interface IInbound extends Document {
   message: string;
   telnyxMessageId?: string;
   timestamp: Date;
+  read: boolean;
 }
 
 const InboundSchema = new Schema<IInbound>(
   {
-    from: { type: String, required: true },
-    to: { type: String },
-    message: { type: String, required: true },
+    from:            { type: String, required: true },
+    to:              { type: String },
+    message:         { type: String, required: true },
     telnyxMessageId: { type: String },
-    timestamp: { type: Date, default: Date.now },
+    timestamp:       { type: Date, default: Date.now },
+    read:            { type: Boolean, default: false },
   },
   { timestamps: true }
 );
 
 InboundSchema.index({ timestamp: -1 });
+InboundSchema.index({ from: 1, read: 1 });
 
 export default mongoose.models.Inbound || mongoose.model<IInbound>('Inbound', InboundSchema);

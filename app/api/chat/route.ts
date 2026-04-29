@@ -19,6 +19,9 @@ export async function GET(req: NextRequest) {
 
   // ── Conversation for a specific phone ──
   if (phone) {
+    // Mark all inbound messages from this phone as read
+    await Inbound.updateMany({ from: phone, read: false }, { read: true });
+
     const [inbound, outbound] = await Promise.all([
       Inbound.find({ from: phone }).lean(),
       OutboundReply.find({ to: phone }).lean(),
@@ -44,14 +47,13 @@ export async function GET(req: NextRequest) {
   }
 
   // ── Contact list ──
-  // Get all unique inbound senders with their latest message
   const contacts = await Inbound.aggregate([
     {
       $group: {
-        _id: '$from',
+        _id:         '$from',
         lastMessage: { $last: '$message' },
         lastTime:    { $max: '$timestamp' },
-        count:       { $sum: 1 },
+        unread:      { $sum: { $cond: [{ $eq: ['$read', false] }, 1, 0] } },
       },
     },
     { $sort: { lastTime: -1 } },
@@ -75,6 +77,7 @@ export async function GET(req: NextRequest) {
   const contactsWithNames = contacts.map((c: any) => ({
     ...c,
     patientName: nameMap[c._id] || '',
+    unread: c.unread || 0,
   }));
 
   return NextResponse.json({ contacts: contactsWithNames });
