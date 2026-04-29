@@ -8,17 +8,17 @@ import { Save, Settings } from 'lucide-react';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [authorized, setAuthorized] = useState(false);
-  const [apiKey, setApiKey] = useState('');
-  const [senderNumber, setSenderNumber] = useState('');
-  const [dailyLimit, setDailyLimit] = useState(2000);
-  const [messageTemplate, setMessageTemplate] = useState('');
-  const [twilioAccountSid, setTwilioAccountSid] = useState('');
-  const [twilioAuthToken, setTwilioAuthToken] = useState('');
+  const [authorized, setAuthorized]               = useState(false);
+  const [apiKey, setApiKey]                       = useState('');
+  const [senderNumber, setSenderNumber]           = useState('');
+  const [dailyLimit, setDailyLimit]               = useState(2000);
+  const [messageTemplate, setMessageTemplate]     = useState('');
+  const [twilioAccountSid, setTwilioAccountSid]   = useState('');
+  const [twilioAuthToken, setTwilioAuthToken]     = useState('');
   const [twilioWhatsappFrom, setTwilioWhatsappFrom] = useState('whatsapp:+14155238886');
   const [whatsappAlertNumbers, setWhatsappAlertNumbers] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading]                     = useState(true);
+  const [saving, setSaving]                       = useState(false);
 
   useEffect(() => {
     axios.get('/api/auth/me').then((res) => {
@@ -65,144 +65,111 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-6 max-w-2xl space-y-6">
+    <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Settings</h1>
-        <p className="text-gray-500 text-sm">Configure your Telnyx API and sending preferences</p>
+        <p className="text-gray-500 text-sm">Configure Telnyx SMS and WhatsApp alert preferences</p>
       </div>
 
-      <form onSubmit={handleSave} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 space-y-5">
-        <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
-          <Settings size={18} className="text-blue-600" />
-          <h2 className="font-semibold text-gray-700">Telnyx Configuration</h2>
+      <form onSubmit={handleSave}>
+        {/* ── Side by side: Telnyx | Twilio WhatsApp ── */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+
+          {/* ── LEFT: Telnyx ── */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 space-y-5">
+            <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
+              <Settings size={18} className="text-blue-600" />
+              <h2 className="font-semibold text-gray-700">Telnyx Configuration</h2>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Telnyx API Key</label>
+              <input type="text" value={apiKey} onChange={(e) => setApiKey(e.target.value)}
+                placeholder="KEY••••••••••••"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono" />
+              <p className="text-xs text-gray-400 mt-1">Leave unchanged to keep existing key. Get yours from <a href="https://portal.telnyx.com" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">portal.telnyx.com</a></p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Sender Phone Number</label>
+              <input type="text" value={senderNumber} onChange={(e) => setSenderNumber(e.target.value)}
+                placeholder="+12025551234"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+              <p className="text-xs text-gray-400 mt-1">Telnyx number in E.164 format (e.g. +12025551234)</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Daily SMS Limit</label>
+              <input type="number" value={dailyLimit} onChange={(e) => setDailyLimit(Number(e.target.value))}
+                min={1} max={100000}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+              <p className="text-xs text-gray-400 mt-1">Maximum SMS to send per day (default: 2000)</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Message Template</label>
+              <textarea value={messageTemplate} onChange={(e) => setMessageTemplate(e.target.value)}
+                rows={5}
+                placeholder="e.g. Hi {name}, your appointment is confirmed. Reply STOP to opt out."
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none" />
+              <p className="text-xs text-gray-400 mt-1">
+                Use <code className="bg-gray-100 px-1 rounded">{'{name}'}</code> to insert the patient&apos;s name.
+              </p>
+            </div>
+          </div>
+
+          {/* ── RIGHT: Twilio WhatsApp ── */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 space-y-5">
+            <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
+              <span className="text-lg">💬</span>
+              <h2 className="font-semibold text-gray-700">WhatsApp Alert Notifications</h2>
+            </div>
+            <p className="text-xs text-gray-400 -mt-2">
+              When a patient replies via SMS, an alert is automatically sent to admin WhatsApp numbers via Twilio.
+            </p>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Twilio Account SID</label>
+              <input type="text" value={twilioAccountSid} onChange={(e) => setTwilioAccountSid(e.target.value)}
+                placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm font-mono" />
+              <p className="text-xs text-gray-400 mt-1">From your <a href="https://console.twilio.com" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Twilio Console</a> dashboard</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Twilio Auth Token</label>
+              <input type="password" value={twilioAuthToken} onChange={(e) => setTwilioAuthToken(e.target.value)}
+                placeholder="Leave blank to keep existing token"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm font-mono" />
+              <p className="text-xs text-gray-400 mt-1">Click the eye 👁 icon on Twilio Console to reveal it</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Twilio WhatsApp From Number</label>
+              <input type="text" value={twilioWhatsappFrom} onChange={(e) => setTwilioWhatsappFrom(e.target.value)}
+                placeholder="whatsapp:+14155238886"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm font-mono" />
+              <p className="text-xs text-gray-400 mt-1">Sandbox default: <code className="bg-gray-100 px-1 rounded">whatsapp:+14155238886</code></p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Admin WhatsApp Alert Numbers</label>
+              <input type="text" value={whatsappAlertNumbers} onChange={(e) => setWhatsappAlertNumbers(e.target.value)}
+                placeholder="+16024300940, +9601176051"
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm" />
+              <p className="text-xs text-gray-400 mt-1">
+                Comma-separated. Each number must send <code className="bg-gray-100 px-1 rounded">join mouse-bet</code> to <strong>+14155238886</strong> on WhatsApp first.
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Telnyx API Key
-          </label>
-          <input
-            type="text"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="KEY••••••••••••"
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
-          />
-          <p className="text-xs text-gray-400 mt-1">Leave unchanged to keep existing key. Get yours from <a href="https://portal.telnyx.com" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">portal.telnyx.com</a></p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Sender Phone Number
-          </label>
-          <input
-            type="text"
-            value={senderNumber}
-            onChange={(e) => setSenderNumber(e.target.value)}
-            placeholder="+12025551234"
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-          />
-          <p className="text-xs text-gray-400 mt-1">Must be a Telnyx number in E.164 format (e.g. +12025551234)</p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Daily SMS Limit
-          </label>
-          <input
-            type="number"
-            value={dailyLimit}
-            onChange={(e) => setDailyLimit(Number(e.target.value))}
-            min={1}
-            max={100000}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-          />
-          <p className="text-xs text-gray-400 mt-1">Maximum SMS to send per day (default: 2000)</p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Message Template
-          </label>
-          <textarea
-            value={messageTemplate}
-            onChange={(e) => setMessageTemplate(e.target.value)}
-            rows={4}
-            placeholder="e.g. Hi {name}, your appointment is confirmed. Reply STOP to opt out."
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"
-          />
-          <p className="text-xs text-gray-400 mt-1">
-            Use <code className="bg-gray-100 px-1 rounded">{'{name}'}</code> to insert the patient&apos;s name. This template is used for all outgoing SMS — no message column needed in Excel.
-          </p>
-        </div>
-
-        <div className="pt-2">
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors"
-          >
-            <Save size={16} />
-            {saving ? 'Saving...' : 'Save Settings'}
-          </button>
-        </div>
-      </form>
-
-      {/* WhatsApp Notifications Section */}
-      <form onSubmit={handleSave} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 space-y-5">
-        <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
-          <span className="text-lg">💬</span>
-          <h2 className="font-semibold text-gray-700">WhatsApp Alert Notifications</h2>
-        </div>
-        <p className="text-xs text-gray-400 -mt-2">
-          When a patient replies via SMS, an alert is automatically sent to admin WhatsApp numbers via Twilio.
-        </p>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Twilio Account SID</label>
-          <input type="text" value={twilioAccountSid}
-            onChange={(e) => setTwilioAccountSid(e.target.value)}
-            placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm font-mono"
-          />
-          <p className="text-xs text-gray-400 mt-1">From your <a href="https://console.twilio.com" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Twilio Console</a> dashboard</p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Twilio Auth Token</label>
-          <input type="password" value={twilioAuthToken}
-            onChange={(e) => setTwilioAuthToken(e.target.value)}
-            placeholder="Leave blank to keep existing token"
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm font-mono"
-          />
-          <p className="text-xs text-gray-400 mt-1">Click the eye icon on Twilio Console to reveal it</p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Twilio WhatsApp From Number</label>
-          <input type="text" value={twilioWhatsappFrom}
-            onChange={(e) => setTwilioWhatsappFrom(e.target.value)}
-            placeholder="whatsapp:+14155238886"
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm font-mono"
-          />
-          <p className="text-xs text-gray-400 mt-1">Twilio sandbox default: <code className="bg-gray-100 px-1 rounded">whatsapp:+14155238886</code></p>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Admin WhatsApp Alert Numbers</label>
-          <input type="text" value={whatsappAlertNumbers}
-            onChange={(e) => setWhatsappAlertNumbers(e.target.value)}
-            placeholder="+16024300940, +9601176051"
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
-          />
-          <p className="text-xs text-gray-400 mt-1">Comma-separated numbers in E.164 format. Each number must have joined the Twilio sandbox first by sending <code className="bg-gray-100 px-1 rounded">join mouse-bet</code> to <strong>+14155238886</strong> on WhatsApp.</p>
-        </div>
-
-        <div className="pt-2">
+        {/* ── Single Save button below both panels ── */}
+        <div className="mt-6">
           <button type="submit" disabled={saving}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors">
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-8 py-2.5 rounded-lg text-sm font-medium transition-colors">
             <Save size={16} />
-            {saving ? 'Saving...' : 'Save WhatsApp Settings'}
+            {saving ? 'Saving...' : 'Save All Settings'}
           </button>
         </div>
       </form>
