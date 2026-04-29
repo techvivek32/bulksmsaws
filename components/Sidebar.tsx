@@ -8,11 +8,12 @@ import toast from 'react-hot-toast';
 import {
   LayoutDashboard, Send, RefreshCw, FileText,
   Inbox, Settings, MessageSquare, LogOut,
-  ShieldCheck, Menu, X,
+  ShieldCheck, Menu, X, Edit3,
 } from 'lucide-react';
 
 const allNavItems = [
   { href: '/dashboard', label: 'Dashboard',   icon: LayoutDashboard, masterOnly: false },
+  { href: '/compose',   label: 'Compose',     icon: Edit3,           masterOnly: false },
   { href: '/send-sms',  label: 'Send SMS',     icon: Send,            masterOnly: true  },
   { href: '/retry',     label: 'Retry Failed', icon: RefreshCw,       masterOnly: false },
   { href: '/reports',   label: 'Reports',      icon: FileText,        masterOnly: false },

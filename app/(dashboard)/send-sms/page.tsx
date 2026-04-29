@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { Upload, Send, Eye, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Upload, Send, Eye, CheckCircle, ChevronLeft, ChevronRight, XCircle } from 'lucide-react';
 import ProgressBar from '@/components/ProgressBar';
 
 type Step = 'upload' | 'preview' | 'sending' | 'done';
@@ -18,6 +18,14 @@ interface SendProgress {
   sent: number;
   failed: number;
   total: number;
+  currentPhone?: string;
+  currentStatus?: 'sending' | 'sent' | 'failed';
+  recentResults?: Array<{
+    phone: string;
+    name: string;
+    status: 'sent' | 'failed';
+    error?: string;
+  }>;
 }
 
 const PAGE_SIZE = 50;
@@ -78,13 +86,83 @@ export default function SendSMSPage() {
 
   const handleSend = async () => {
     setLoading(true);
+    setProgress({ sent: 0, failed: 0, total: allRows.length, recentResults: [] });
+
     try {
-      const res = await axios.post('/api/sms/send', { campaign });
-      setProgress({ sent: res.data.sent, failed: res.data.failed, total: res.data.total });
-      toast.success(`Done! ${res.data.sent} sent, ${res.data.failed} failed`);
-      setStep('done');
+      const response = await fetch('/api/sms/send-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaign }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error(error.error || 'Send failed');
+        setLoading(false);
+        return;
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        toast.error('Failed to start sending');
+        setLoading(false);
+        return;
+      }
+
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+
+          try {
+            const data = JSON.parse(line);
+
+            if (data.type === 'start') {
+              setProgress(prev => ({ ...prev, total: data.total }));
+            } else if (data.type === 'progress') {
+              setProgress(prev => ({
+                sent: data.sent,
+                failed: data.failed,
+                total: data.total,
+                currentPhone: data.phone,
+                currentStatus: data.status,
+                recentResults: [
+                  {
+                    phone: data.phone,
+                    name: data.name || data.phone,
+                    status: data.status === 'sent' ? 'sent' : 'failed',
+                    error: data.error,
+                  },
+                  ...(prev.recentResults || []).slice(0, 9), // Keep last 10
+                ],
+              }));
+            } else if (data.type === 'complete') {
+              setProgress({
+                sent: data.sent,
+                failed: data.failed,
+                total: data.total,
+              });
+              toast.success(`Done! ${data.sent} sent, ${data.failed} failed`);
+              setStep('done');
+            }
+          } catch (e) {
+            console.error('Failed to parse line:', line);
+          }
+        }
+      }
     } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Send failed');
+      toast.error(err?.message || 'Send failed');
     } finally {
       setLoading(false);
     }
@@ -292,6 +370,53 @@ export default function SendSMSPage() {
           </div>
 
           <ProgressBar sent={progress.sent} failed={progress.failed} total={progress.total} />
+
+          {/* Current Status */}
+          {loading && progress.currentPhone && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-700">
+                    {progress.currentStatus === 'sending' && 'Sending to: '}
+                    {progress.currentStatus === 'sent' && '✓ Sent to: '}
+                    {progress.currentStatus === 'failed' && '✗ Failed: '}
+                    {progress.currentPhone}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Recent Results */}
+          {progress.recentResults && progress.recentResults.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-600">Recent Messages:</p>
+              <div className="max-h-64 overflow-y-auto space-y-1">
+                {progress.recentResults.map((result, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+                      result.status === 'sent'
+                        ? 'bg-green-50 text-green-700'
+                        : 'bg-red-50 text-red-700'
+                    }`}
+                  >
+                    {result.status === 'sent' ? (
+                      <CheckCircle size={14} className="flex-shrink-0" />
+                    ) : (
+                      <XCircle size={14} className="flex-shrink-0" />
+                    )}
+                    <span className="font-medium">{result.name}</span>
+                    <span className="text-xs opacity-75">({result.phone})</span>
+                    {result.error && (
+                      <span className="text-xs ml-auto">{result.error}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <button
             onClick={handleSend}
