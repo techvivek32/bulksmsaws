@@ -61,8 +61,15 @@ export default function ComposePage() {
 
   // Format phone number as user types
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
-    setPhoneNumber(value);
+    const value = e.target.value;
+    // Allow + at the beginning and digits only
+    const cleaned = value.replace(/[^\d+]/g, '');
+    // Ensure + is only at the start
+    if (cleaned.startsWith('+')) {
+      setPhoneNumber('+' + cleaned.slice(1).replace(/\+/g, ''));
+    } else {
+      setPhoneNumber(cleaned);
+    }
   };
 
   // Send message
