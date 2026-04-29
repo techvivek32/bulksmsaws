@@ -11,18 +11,20 @@ export async function GET(req: NextRequest) {
   await connectDB();
 
   const { searchParams } = new URL(req.url);
-  const status = searchParams.get('status');
-  const from = searchParams.get('from');
-  const to = searchParams.get('to');
-  const page = parseInt(searchParams.get('page') || '1');
-  const limit = parseInt(searchParams.get('limit') || '50');
+  const status   = searchParams.get('status');
+  const from     = searchParams.get('from');
+  const to       = searchParams.get('to');
+  const campaign = searchParams.get('campaign');
+  const page     = parseInt(searchParams.get('page')  || '1');
+  const limit    = parseInt(searchParams.get('limit') || '50');
 
   const query: any = {};
   if (status && status !== 'all') query.status = status;
+  if (campaign) query.campaign = campaign === '(No Campaign)' ? { $in: [null, '', undefined] } : campaign;
   if (from || to) {
     query.createdAt = {};
     if (from) query.createdAt.$gte = new Date(from);
-    if (to) query.createdAt.$lte = new Date(to + 'T23:59:59');
+    if (to)   query.createdAt.$lte = new Date(to + 'T23:59:59');
   }
 
   const [messages, total] = await Promise.all([
@@ -30,7 +32,7 @@ export async function GET(req: NextRequest) {
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
-      .select('phone message status error createdAt campaign'),
+      .select('phone patientName message status error createdAt campaign'),
     SMS.countDocuments(query),
   ]);
 

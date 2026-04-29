@@ -21,10 +21,10 @@ export default function InboxPage() {
   const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
-    // Check role first
+    // Both master_admin and admin can access inbox
     axios.get('/api/auth/me').then((res) => {
-      if (res.data.role !== 'master_admin') {
-        router.replace('/dashboard');
+      if (!res.data.role) {
+        router.replace('/login');
       } else {
         setAuthorized(true);
       }

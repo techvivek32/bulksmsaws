@@ -19,10 +19,10 @@ import {
 
 const allNavItems = [
   { href: '/dashboard',  label: 'Dashboard',    icon: LayoutDashboard, masterOnly: false },
-  { href: '/send-sms',   label: 'Send SMS',      icon: Send,            masterOnly: false },
+  { href: '/send-sms',   label: 'Send SMS',      icon: Send,            masterOnly: true  },
   { href: '/retry',      label: 'Retry Failed',  icon: RefreshCw,       masterOnly: false },
   { href: '/reports',    label: 'Reports',       icon: FileText,        masterOnly: false },
-  { href: '/inbox',      label: 'Inbox',         icon: Inbox,           masterOnly: true  },
+  { href: '/inbox',      label: 'Inbox',         icon: Inbox,           masterOnly: false },
   { href: '/settings',   label: 'Settings',      icon: Settings,        masterOnly: true  },
 ];
 

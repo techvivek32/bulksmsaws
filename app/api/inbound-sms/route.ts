@@ -69,11 +69,10 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Get all inbound messages — master_admin only
+// Get all inbound messages — any authenticated user
 export async function GET(req: NextRequest) {
   const user = getUserFromRequest(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (user.role !== 'master_admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   try {
     await connectDB();
     const messages = await Inbound.find().sort({ timestamp: -1 }).limit(100);
