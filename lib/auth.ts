@@ -6,6 +6,7 @@ const JWT_SECRET = process.env.JWT_SECRET!;
 export interface JWTPayload {
   userId: string;
   email: string;
+  role: 'master_admin' | 'admin';
 }
 
 export function signToken(payload: JWTPayload): string {
@@ -21,12 +22,10 @@ export function verifyToken(token: string): JWTPayload | null {
 }
 
 export function getTokenFromRequest(req: NextRequest): string | null {
-  // Check Authorization header
   const authHeader = req.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
     return authHeader.slice(7);
   }
-  // Check cookie
   const cookie = req.cookies.get('token');
   return cookie?.value ?? null;
 }
@@ -35,4 +34,10 @@ export function getUserFromRequest(req: NextRequest): JWTPayload | null {
   const token = getTokenFromRequest(req);
   if (!token) return null;
   return verifyToken(token);
+}
+
+// Returns true only if user is master_admin
+export function isMasterAdmin(req: NextRequest): boolean {
+  const user = getUserFromRequest(req);
+  return user?.role === 'master_admin';
 }

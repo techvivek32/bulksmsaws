@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import {
@@ -13,20 +14,34 @@ import {
   Settings,
   MessageSquare,
   LogOut,
+  ShieldCheck,
 } from 'lucide-react';
 
-const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/send-sms', label: 'Send SMS', icon: Send },
-  { href: '/retry', label: 'Retry Failed', icon: RefreshCw },
-  { href: '/reports', label: 'Reports', icon: FileText },
-  { href: '/inbox', label: 'Inbox', icon: Inbox },
-  { href: '/settings', label: 'Settings', icon: Settings },
+const allNavItems = [
+  { href: '/dashboard',  label: 'Dashboard',    icon: LayoutDashboard, masterOnly: false },
+  { href: '/send-sms',   label: 'Send SMS',      icon: Send,            masterOnly: false },
+  { href: '/retry',      label: 'Retry Failed',  icon: RefreshCw,       masterOnly: false },
+  { href: '/reports',    label: 'Reports',       icon: FileText,        masterOnly: false },
+  { href: '/inbox',      label: 'Inbox',         icon: Inbox,           masterOnly: true  },
+  { href: '/settings',   label: 'Settings',      icon: Settings,        masterOnly: true  },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [role, setRole] = useState<'master_admin' | 'admin' | null>(null);
+  const [email, setEmail] = useState('');
+
+  useEffect(() => {
+    axios.get('/api/auth/me').then((res) => {
+      setRole(res.data.role);
+      setEmail(res.data.email);
+    }).catch(() => {});
+  }, []);
+
+  const navItems = allNavItems.filter((item) =>
+    item.masterOnly ? role === 'master_admin' : true
+  );
 
   const handleLogout = async () => {
     await axios.post('/api/auth/logout');
@@ -46,6 +61,19 @@ export default function Sidebar() {
           <p className="text-xs text-gray-400">Admin Panel</p>
         </div>
       </div>
+
+      {/* Role badge */}
+      {role && (
+        <div className="px-6 py-3 border-b border-gray-700">
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={14} className={role === 'master_admin' ? 'text-yellow-400' : 'text-blue-400'} />
+            <span className={`text-xs font-semibold ${role === 'master_admin' ? 'text-yellow-400' : 'text-blue-400'}`}>
+              {role === 'master_admin' ? 'Master Admin' : 'Admin'}
+            </span>
+          </div>
+          <p className="text-xs text-gray-500 mt-0.5 truncate">{email}</p>
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1">

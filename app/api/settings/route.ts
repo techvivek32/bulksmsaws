@@ -4,9 +4,9 @@ import { connectDB } from '@/lib/mongodb';
 import Settings from '@/models/Settings';
 
 export async function GET(req: NextRequest) {
-  if (!getUserFromRequest(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const user = getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (user.role !== 'master_admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   await connectDB();
   const settings = await Settings.findOne();
@@ -24,9 +24,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!getUserFromRequest(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const user = getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (user.role !== 'master_admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   await connectDB();
   const { apiKey, senderNumber, dailyLimit, messageTemplate } = await req.json();

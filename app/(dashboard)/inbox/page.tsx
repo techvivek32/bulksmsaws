@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import axios from 'axios';
+import { useRouter } from 'next/navigation';
 import { Inbox, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -14,8 +15,21 @@ interface InboundMsg {
 }
 
 export default function InboxPage() {
+  const router = useRouter();
   const [messages, setMessages] = useState<InboundMsg[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
+
+  useEffect(() => {
+    // Check role first
+    axios.get('/api/auth/me').then((res) => {
+      if (res.data.role !== 'master_admin') {
+        router.replace('/dashboard');
+      } else {
+        setAuthorized(true);
+      }
+    }).catch(() => router.replace('/login'));
+  }, [router]);
 
   const fetchMessages = async () => {
     try {
@@ -29,11 +43,11 @@ export default function InboxPage() {
   };
 
   useEffect(() => {
+    if (!authorized) return;
     fetchMessages();
-    // Poll every 15 seconds for new replies
     const interval = setInterval(fetchMessages, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [authorized]);
 
   return (
     <div className="p-6 space-y-6">
@@ -51,7 +65,7 @@ export default function InboxPage() {
         </button>
       </div>
 
-      {loading ? (
+      {(!authorized || loading) ? (
         <div className="flex items-center justify-center py-16">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>

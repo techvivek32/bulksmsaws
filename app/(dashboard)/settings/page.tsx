@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
 import { Save, Settings } from 'lucide-react';
 
 export default function SettingsPage() {
+  const router = useRouter();
+  const [authorized, setAuthorized] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [senderNumber, setSenderNumber] = useState('');
   const [dailyLimit, setDailyLimit] = useState(2000);
@@ -14,13 +17,20 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    axios.get('/api/settings').then((res) => {
-      setApiKey(res.data.apiKey || '');
-      setSenderNumber(res.data.senderNumber || '');
-      setDailyLimit(res.data.dailyLimit || 2000);
-      setMessageTemplate(res.data.messageTemplate || '');
-    }).finally(() => setLoading(false));
-  }, []);
+    axios.get('/api/auth/me').then((res) => {
+      if (res.data.role !== 'master_admin') {
+        router.replace('/dashboard');
+      } else {
+        setAuthorized(true);
+        axios.get('/api/settings').then((r) => {
+          setApiKey(r.data.apiKey || '');
+          setSenderNumber(r.data.senderNumber || '');
+          setDailyLimit(r.data.dailyLimit || 2000);
+          setMessageTemplate(r.data.messageTemplate || '');
+        }).finally(() => setLoading(false));
+      }
+    }).catch(() => router.replace('/login'));
+  }, [router]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +45,7 @@ export default function SettingsPage() {
     }
   };
 
-  if (loading) {
+  if (!authorized || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
