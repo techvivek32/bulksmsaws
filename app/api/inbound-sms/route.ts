@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongodb';
+import { getUserFromRequest } from '@/lib/auth';
 import Inbound from '@/models/Inbound';
 
 // Telnyx webhook for inbound SMS
