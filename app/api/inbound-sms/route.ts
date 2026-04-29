@@ -8,26 +8,55 @@ export async function POST(req: NextRequest) {
     await connectDB();
     const body = await req.json();
 
-    // Telnyx webhook payload structure
-    const event = body?.data;
-    if (event?.event_type !== 'message.received') {
+    // Log full payload for debugging
+    console.log('Inbound webhook received:', JSON.stringify(body, null, 2));
+
+    // Telnyx can send payload in different structures — handle all
+    const event = body?.data || body;
+    const eventType = event?.event_type || body?.event_type || '';
+
+    // Accept message.received or no event type (some Telnyx versions)
+    if (eventType && eventType !== 'message.received') {
+      console.log('Ignoring event type:', eventType);
       return NextResponse.json({ received: true });
     }
 
-    const payload = event?.payload;
-    const from = payload?.from?.phone_number || payload?.from || '';
-    const to = payload?.to?.[0]?.phone_number || payload?.to || '';
-    const text = payload?.text || '';
-    const messageId = payload?.id || '';
+    const payload = event?.payload || event;
 
-    if (!from || !text) {
-      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    // Handle all possible from/to formats Telnyx sends
+    const from =
+      payload?.from?.phone_number ||
+      payload?.from ||
+      body?.from ||
+      '';
+
+    const to =
+      payload?.to?.[0]?.phone_number ||
+      payload?.to?.[0] ||
+      payload?.to ||
+      body?.to ||
+      '';
+
+    const text =
+      payload?.text ||
+      payload?.body ||
+      body?.text ||
+      body?.body ||
+      '';
+
+    const messageId = payload?.id || event?.id || body?.id || '';
+
+    console.log('Parsed inbound — from:', from, 'to:', to, 'text:', text);
+
+    if (!from && !text) {
+      console.log('Empty payload, skipping');
+      return NextResponse.json({ received: true });
     }
 
     await Inbound.create({
-      from,
-      to,
-      message: text,
+      from: from || 'unknown',
+      to: to || '',
+      message: text || '(no text)',
       telnyxMessageId: messageId,
       timestamp: new Date(),
     });
