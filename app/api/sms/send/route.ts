@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/auth';
 import { connectDB } from '@/lib/mongodb';
 import SMS from '@/models/SMS';
+import Settings from '@/models/Settings';
 import { sendSMS, randomDelay, getTelnyxConfig } from '@/lib/telnyx';
 import { startOfDay, endOfDay } from 'date-fns';
 
@@ -16,9 +17,10 @@ export async function POST(req: NextRequest) {
 
     // Load settings: daily limit + message template
     const { dailyLimit } = await getTelnyxConfig();
-    const Settings = (await import('@/models/Settings')).default;
-    const settings = await Settings.findOne();
-    const template = settings?.messageTemplate?.trim();
+    const settings = await Settings.findOne().lean();
+    const template = (settings?.messageTemplate || '').trim();
+
+    console.log('Template loaded:', template); // debug log
 
     if (!template) {
       return NextResponse.json(
@@ -54,7 +56,17 @@ export async function POST(req: NextRequest) {
 
     for (const msg of messages) {
       // Build message from template — {name} is replaced with patient name
-      const text = template.replace(/\{name\}/gi, msg.patientName || '').trim();
+      // Fallback to msg.message if template somehow empty
+      const text = (template || msg.message || '').replace(/\{name\}/gi, msg.patientName || '').trim();
+
+      if (!text) {
+        msg.status = 'failed';
+        msg.error = 'No message text available — check Settings template';
+        await msg.save();
+        failed++;
+        continue;
+      }
+
       const result = await sendSMS(msg.phone, text);
 
       if (result.success) {
