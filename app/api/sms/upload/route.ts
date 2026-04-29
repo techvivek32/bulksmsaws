@@ -34,6 +34,20 @@ export async function POST(req: NextRequest) {
       return key ? String(row[key] || '').trim() : '';
     };
 
+    // Helper: normalize phone to E.164 format (+1XXXXXXXXXX for US numbers)
+    const normalizePhone = (raw: string): string => {
+      // Strip everything except digits and leading +
+      const digits = raw.replace(/\D/g, '');
+      if (!digits) return '';
+      // If 10 digits assume US number → prepend +1
+      if (digits.length === 10) return `+1${digits}`;
+      // If 11 digits starting with 1 → prepend +
+      if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+      // Already has country code
+      if (digits.length > 11) return `+${digits}`;
+      return `+${digits}`;
+    };
+
     // Parse patient-specific columns from the Excel file
     const parsed = rows
       .map((row) => {
@@ -47,12 +61,13 @@ export async function POST(req: NextRequest) {
         // Merge name parts, skip empty middle initial
         const patientName = [firstName, middleInit, lastName].filter(Boolean).join(' ');
 
-        // Prefer cell phone, fall back to work phone
-        const phone = cellPhone || workPhone;
+        // Prefer cell phone, fall back to work phone — normalize to E.164
+        const rawPhone = cellPhone || workPhone;
+        const phone = normalizePhone(rawPhone);
 
         return { patientName, phone, email };
       })
-      .filter((r) => r.phone); // must have at least a phone number
+      .filter((r) => r.phone);
 
     if (!parsed.length) {
       return NextResponse.json({

@@ -55,6 +55,14 @@ export async function POST(req: NextRequest) {
     let failed = 0;
 
     for (const msg of messages) {
+      // Normalize phone to E.164 in case old records have unformatted numbers
+      const rawPhone = msg.phone || '';
+      const digits = rawPhone.replace(/\D/g, '');
+      let phone = rawPhone;
+      if (digits.length === 10) phone = `+1${digits}`;
+      else if (digits.length === 11 && digits.startsWith('1')) phone = `+${digits}`;
+      else if (!rawPhone.startsWith('+')) phone = `+${digits}`;
+
       // Build message from template — {name} is replaced with patient name
       // Fallback to msg.message if template somehow empty
       const text = (template || msg.message || '').replace(/\{name\}/gi, msg.patientName || '').trim();
@@ -67,7 +75,7 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      const result = await sendSMS(msg.phone, text);
+      const result = await sendSMS(phone, text);
 
       if (result.success) {
         msg.status = 'sent';

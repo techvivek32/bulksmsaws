@@ -1,18 +1,8 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import * as fs from 'fs';
-import * as path from 'path';
 
-// Manually load .env.local
-const envPath = path.resolve(process.cwd(), '.env.local');
-if (fs.existsSync(envPath)) {
-  fs.readFileSync(envPath, 'utf-8').split('\n').forEach((line) => {
-    const [key, ...rest] = line.split('=');
-    if (key && rest.length) process.env[key.trim()] = rest.join('=').trim();
-  });
-}
-
-const MONGODB_URI = process.env.MONGODB_URI!;
+// Atlas MongoDB URI
+const MONGODB_URI = 'mongodb+srv://Vercel-Admin-atlas-celeste-drum:Wp7zT4WwKyTsJgIG@atlas-celeste-drum.qeqss1f.mongodb.net/?retryWrites=true&w=majority';
 
 const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true },
@@ -23,14 +13,13 @@ const User = mongoose.models.User || mongoose.model('User', UserSchema);
 
 async function seed() {
   await mongoose.connect(MONGODB_URI);
-  console.log('Connected to MongoDB');
+  console.log('Connected to MongoDB Atlas');
 
   const email = 'admin@aws.com';
   const password = 'admin123';
 
   const existing = await User.findOne({ email });
   if (existing) {
-    // Update password in case it changed
     existing.password = await bcrypt.hash(password, 12);
     await existing.save();
     console.log('Admin password updated:', email);
