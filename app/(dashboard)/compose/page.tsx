@@ -23,6 +23,7 @@ export default function ComposePage() {
   const router = useRouter();
   const [authorized, setAuthorized] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [personName, setPersonName] = useState('');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [sentMessages, setSentMessages] = useState<SentMessage[]>([]);
@@ -94,11 +95,13 @@ export default function ComposePage() {
     try {
       const res = await axios.post('/api/compose/send', {
         to: cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`,
-        message: message.trim()
+        message: message.trim(),
+        personName: personName.trim(),
       });
 
       toast.success('Message sent successfully!');
       setPhoneNumber('');
+      setPersonName('');
       setMessage('');
       
       // Refresh history
@@ -146,6 +149,21 @@ export default function ComposePage() {
               <h2 className="font-semibold text-gray-800">New Message</h2>
               <p className="text-xs text-gray-400">Send SMS to any phone number</p>
             </div>
+          </div>
+
+          {/* Person Name Input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Person Name <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={personName}
+              onChange={(e) => setPersonName(e.target.value)}
+              placeholder="e.g. John Smith"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              disabled={sending}
+            />
           </div>
 
           {/* Phone Number Input */}

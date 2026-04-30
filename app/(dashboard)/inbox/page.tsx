@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { Inbox, RefreshCw, Send, Search, MessageSquare, ArrowLeft } from 'lucide-react';
+import { Inbox, RefreshCw, Send, Search, MessageSquare, ArrowLeft, Pencil, Check, X } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
 
 interface Contact {
@@ -45,8 +45,12 @@ export default function InboxPage() {
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [loadingChat, setLoadingChat]         = useState(false);
   const [searchQ, setSearchQ]                 = useState('');
+  const [editingName, setEditingName]         = useState(false);
+  const [editNameVal, setEditNameVal]         = useState('');
+  const [savingName, setSavingName]           = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   /* ── Auth ── */
   useEffect(() => {
@@ -100,6 +104,35 @@ export default function InboxPage() {
   };
 
   const closeChat = () => setActivePhone(null);
+
+  const startEditName = () => {
+    setEditNameVal(activeContact?.patientName || '');
+    setEditingName(true);
+    setTimeout(() => nameInputRef.current?.focus(), 50);
+  };
+
+  const cancelEditName = () => {
+    setEditingName(false);
+    setEditNameVal('');
+  };
+
+  const saveEditName = async () => {
+    if (!activePhone) return;
+    setSavingName(true);
+    try {
+      await axios.post('/api/chat/rename', { phone: activePhone, name: editNameVal });
+      // Update contacts list immediately
+      setContacts((prev) => prev.map((c) =>
+        c._id === activePhone ? { ...c, patientName: editNameVal.trim() } : c
+      ));
+      toast.success('Name updated');
+      setEditingName(false);
+    } catch {
+      toast.error('Failed to update name');
+    } finally {
+      setSavingName(false);
+    }
+  };
 
   /* ── Poll active conversation ── */
   useEffect(() => {
@@ -230,13 +263,56 @@ export default function InboxPage() {
             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
               {(activeContact?.patientName || activePhone || '').slice(0, 2).toUpperCase()}
             </div>
-            <div>
-              <p className="font-semibold text-gray-800 text-sm">
-                {activeContact?.patientName || activePhone}
-              </p>
-              <p className="text-xs text-gray-400">
-                {activeContact?.patientName ? activePhone : 'SMS conversation'}
-              </p>
+            <div className="flex-1 min-w-0">
+              {editingName ? (
+                /* ── Edit mode ── */
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={nameInputRef}
+                    type="text"
+                    value={editNameVal}
+                    onChange={(e) => setEditNameVal(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') saveEditName();
+                      if (e.key === 'Escape') cancelEditName();
+                    }}
+                    className="flex-1 px-2 py-1 border border-blue-400 rounded-lg text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter name..."
+                  />
+                  <button
+                    onClick={saveEditName}
+                    disabled={savingName}
+                    className="p-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg disabled:opacity-50"
+                  >
+                    <Check size={14} />
+                  </button>
+                  <button
+                    onClick={cancelEditName}
+                    className="p-1.5 bg-gray-200 hover:bg-gray-300 text-gray-600 rounded-lg"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                /* ── Display mode ── */
+                <div className="flex items-center gap-1.5 group">
+                  <div>
+                    <p className="font-semibold text-gray-800 text-sm">
+                      {activeContact?.patientName || activePhone}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {activeContact?.patientName ? activePhone : 'SMS conversation'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={startEditName}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-blue-500 rounded transition-all"
+                    title="Edit name"
+                  >
+                    <Pencil size={13} />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { to, message } = await req.json();
+    const { to, message, personName } = await req.json();
 
     // Validation
     if (!to || !message) {
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 
     // Save to database
     const smsRecord = await SMS.create({
-      patientName: '', // No name for manual compose
+      patientName: personName?.trim() || '',
       phone: formattedPhone,
       email: '',
       message,
