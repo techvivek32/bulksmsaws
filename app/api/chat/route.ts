@@ -59,24 +59,28 @@ export async function GET(req: NextRequest) {
     { $sort: { lastTime: -1 } },
   ]);
 
-  // Look up patient names from SMS records by phone number
+  // Look up patient names AND campaign from SMS records by phone number
   const phones = contacts.map((c: any) => c._id);
   const smsRecords = await SMS.find({ phone: { $in: phones } })
-    .select('phone patientName')
+    .select('phone patientName campaign')
     .lean();
 
-  // Build phone → name map (use first match found)
-  const nameMap: Record<string, string> = {};
+  // Build phone → { name, campaign } map (use first match found)
+  const infoMap: Record<string, { name: string; campaign: string }> = {};
   for (const s of smsRecords as any[]) {
-    if (s.patientName && !nameMap[s.phone]) {
-      nameMap[s.phone] = s.patientName;
+    if (!infoMap[s.phone]) {
+      infoMap[s.phone] = {
+        name: s.patientName || '',
+        campaign: s.campaign || '',
+      };
     }
   }
 
-  // Attach name to each contact
+  // Attach name + campaign to each contact
   const contactsWithNames = contacts.map((c: any) => ({
     ...c,
-    patientName: nameMap[c._id] || '',
+    patientName: infoMap[c._id]?.name || '',
+    campaign: infoMap[c._id]?.campaign || '',
     unread: c.unread || 0,
   }));
 

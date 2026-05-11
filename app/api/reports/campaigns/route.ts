@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
         pending:   { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
         lastSent:  { $max: '$createdAt' },
         firstSent: { $min: '$createdAt' },
+        sampleMessage: { $first: '$message' }, // grab one message as preview
       },
     },
     { $sort: { lastSent: -1 } }

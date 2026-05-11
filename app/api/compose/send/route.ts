@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/auth';
 import { connectDB } from '@/lib/mongodb';
 import SMS from '@/models/SMS';
+import OutboundReply from '@/models/OutboundReply';
 import { sendSMS, getTelnyxConfig } from '@/lib/telnyx';
 
 export async function POST(req: NextRequest) {
@@ -36,6 +37,9 @@ export async function POST(req: NextRequest) {
 
     await connectDB();
 
+    // Get sender number for OutboundReply
+    const { senderNumber } = await getTelnyxConfig();
+
     // Send via Telnyx
     let status: 'sent' | 'failed' = 'sent';
     let errorMessage = '';
@@ -47,7 +51,7 @@ export async function POST(req: NextRequest) {
       errorMessage = result.error || 'Failed to send SMS';
     }
 
-    // Save to database
+    // Save to SMS database
     const smsRecord = await SMS.create({
       patientName: '', // No name for manual compose
       phone: formattedPhone,
@@ -60,6 +64,17 @@ export async function POST(req: NextRequest) {
       error: errorMessage || undefined,
       telnyxMessageId: result.messageId,
     });
+
+    // Also save to OutboundReply so it appears in Inbox conversation
+    if (status === 'sent') {
+      await OutboundReply.create({
+        to: formattedPhone,
+        from: senderNumber,
+        message: message.trim(),
+        telnyxMessageId: result.messageId,
+        timestamp: new Date(),
+      });
+    }
 
     if (status === 'failed') {
       return NextResponse.json(

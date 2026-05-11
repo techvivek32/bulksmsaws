@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Send, MessageSquare, Clock, CheckCircle, XCircle, History } from 'lucide-react';
 import { format } from 'date-fns';
+import TemplatePicker from '@/components/TemplatePicker';
+import { useTemplateNav } from '@/lib/useTemplateNav';
 
 // Configure axios to send cookies
 axios.defaults.withCredentials = true;
@@ -116,6 +118,8 @@ export default function ComposePage() {
     }
   };
 
+  const { handleKeyNav, handleChange: templateHandleChange, previewIndex, total } = useTemplateNav({ value: message, setValue: setMessage });
+
   if (!authorized) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -168,14 +172,17 @@ export default function ComposePage() {
 
           {/* Message Input */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Message
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700">
+                Message
+              </label>
+              <TemplatePicker onSelect={(body) => setMessage(body)} />
+            </div>
             <textarea
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type your message here..."
+              onChange={(e) => templateHandleChange(e.target.value)}
+              onKeyDown={(e) => { handleKeyNav(e as any); handleKeyDown(e); }}
+              placeholder="Type your message here... (↑↓ for templates)"
               rows={6}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-none"
               disabled={sending}
@@ -184,9 +191,15 @@ export default function ComposePage() {
               <p className="text-xs text-gray-400">
                 {charCount} characters · {smsCount} SMS
               </p>
-              <p className="text-xs text-gray-400">
-                Ctrl + Enter to send
-              </p>
+              {previewIndex !== null && total > 0 ? (
+                <p className="text-xs text-blue-500 font-medium">
+                  Template {previewIndex + 1}/{total} · ↑↓ to cycle
+                </p>
+              ) : (
+                <p className="text-xs text-gray-400">
+                  Ctrl + Enter to send
+                </p>
+              )}
             </div>
           </div>
 
@@ -240,7 +253,8 @@ export default function ComposePage() {
               sentMessages.map((msg) => (
                 <div
                   key={msg._id}
-                  className="p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                  onClick={() => router.push(`/inbox?phone=${encodeURIComponent(msg.to)}`)}
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 min-w-0">
@@ -267,9 +281,14 @@ export default function ComposePage() {
                   <p className="text-sm text-gray-600 mb-2 line-clamp-2">
                     {msg.message}
                   </p>
-                  <p className="text-xs text-gray-400">
-                    {format(new Date(msg.timestamp), 'MMM dd, yyyy HH:mm')}
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-gray-400">
+                      {format(new Date(msg.timestamp), 'MMM dd, yyyy HH:mm')}
+                    </p>
+                    <p className="text-xs text-blue-600 hover:text-blue-700 font-medium">
+                      View in Inbox →
+                    </p>
+                  </div>
                 </div>
               ))
             )}

@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
       }
 
       await msg.save();
-      await randomDelay(200, 300);
+      await randomDelay(1000, 1000);
     }
 
     return NextResponse.json({ success: true, sent, failed, total: messages.length });

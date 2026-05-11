@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 import {
   LayoutDashboard, Send, RefreshCw, FileText,
   Inbox, Settings, MessageSquare, LogOut,
-  ShieldCheck, Menu, X, Edit3,
+  ShieldCheck, Menu, X, Edit3, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 
 const allNavItems = [
@@ -22,11 +22,12 @@ const allNavItems = [
 ];
 
 export default function Sidebar() {
-  const pathname = usePathname();
-  const router   = useRouter();
-  const [role, setRole]       = useState<'master_admin' | 'admin' | null>(null);
-  const [email, setEmail]     = useState('');
-  const [open, setOpen]       = useState(false); // mobile drawer
+  const pathname  = usePathname();
+  const router    = useRouter();
+  const [role, setRole]         = useState<'master_admin' | 'admin' | null>(null);
+  const [email, setEmail]       = useState('');
+  const [open, setOpen]         = useState(false);       // mobile drawer
+  const [collapsed, setCollapsed] = useState(false);     // desktop collapse
 
   useEffect(() => {
     axios.get('/api/auth/me').then((res) => {
@@ -35,7 +36,6 @@ export default function Sidebar() {
     }).catch(() => {});
   }, []);
 
-  // Close drawer on route change
   useEffect(() => { setOpen(false); }, [pathname]);
 
   const navItems = allNavItems.filter((item) =>
@@ -49,29 +49,30 @@ export default function Sidebar() {
   };
 
   /* ── Shared nav content ── */
-  const NavContent = () => (
+  const NavContent = ({ mini = false }: { mini?: boolean }) => (
     <>
       {/* Logo */}
-      <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-700">
+      <div className={`flex items-center border-b border-gray-700 ${mini ? 'justify-center px-3 py-5' : 'gap-3 px-4 py-5'}`}>
         <div className="bg-blue-600 p-2 rounded-lg flex-shrink-0">
           <MessageSquare size={20} />
         </div>
-        <div>
-          <p className="font-bold text-sm">BulkSMS</p>
-          <p className="text-xs text-gray-400">Admin Panel</p>
-        </div>
-        {/* Close button — mobile only */}
-        <button
-          onClick={() => setOpen(false)}
-          className="ml-auto lg:hidden text-gray-400 hover:text-white p-1"
-        >
-          <X size={20} />
-        </button>
+        {!mini && (
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-sm">BulkSMS</p>
+            <p className="text-xs text-gray-400">Admin Panel</p>
+          </div>
+        )}
+        {/* Mobile close */}
+        {!mini && (
+          <button onClick={() => setOpen(false)} className="ml-auto lg:hidden text-gray-400 hover:text-white p-1">
+            <X size={20} />
+          </button>
+        )}
       </div>
 
       {/* Role badge */}
-      {role && (
-        <div className="px-6 py-3 border-b border-gray-700">
+      {role && !mini && (
+        <div className="px-4 py-3 border-b border-gray-700">
           <div className="flex items-center gap-2">
             <ShieldCheck size={14} className={role === 'master_admin' ? 'text-yellow-400' : 'text-blue-400'} />
             <span className={`text-xs font-semibold ${role === 'master_admin' ? 'text-yellow-400' : 'text-blue-400'}`}>
@@ -83,34 +84,40 @@ export default function Sidebar() {
       )}
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <nav className={`flex-1 py-4 space-y-1 overflow-y-auto ${mini ? 'px-2' : 'px-3'}`}>
         {navItems.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + '/');
           return (
             <Link
               key={href}
               href={href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              title={mini ? label : undefined}
+              className={`flex items-center rounded-lg text-sm font-medium transition-colors ${
+                mini ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'
+              } ${
                 active
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-400 hover:bg-gray-800 hover:text-white'
               }`}
             >
               <Icon size={18} />
-              {label}
+              {!mini && label}
             </Link>
           );
         })}
       </nav>
 
       {/* Logout */}
-      <div className="px-3 py-4 border-t border-gray-700">
+      <div className={`py-4 border-t border-gray-700 ${mini ? 'px-2' : 'px-3'}`}>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-gray-800 hover:text-white w-full transition-colors"
+          title={mini ? 'Logout' : undefined}
+          className={`flex items-center rounded-lg text-sm font-medium text-gray-400 hover:bg-gray-800 hover:text-white w-full transition-colors ${
+            mini ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'
+          }`}
         >
           <LogOut size={18} />
-          Logout
+          {!mini && 'Logout'}
         </button>
       </div>
     </>
@@ -118,9 +125,22 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* ── DESKTOP sidebar (lg+) ── */}
-      <aside className="hidden lg:flex w-64 h-screen sticky top-0 bg-gray-900 text-white flex-col flex-shrink-0">
-        <NavContent />
+      {/* ── DESKTOP sidebar ── */}
+      <aside
+        className={`hidden lg:flex h-screen sticky top-0 bg-gray-900 text-white flex-col flex-shrink-0 transition-all duration-300 relative ${
+          collapsed ? 'w-16' : 'w-64'
+        }`}
+      >
+        <NavContent mini={collapsed} />
+
+        {/* Collapse toggle button */}
+        <button
+          onClick={() => setCollapsed((v) => !v)}
+          className="absolute -right-3 top-20 w-6 h-6 bg-gray-700 hover:bg-blue-600 text-white rounded-full flex items-center justify-center shadow-md transition-colors z-10"
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+        </button>
       </aside>
 
       {/* ── MOBILE top navbar ── */}
@@ -144,16 +164,10 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* ── MOBILE drawer overlay ── */}
+      {/* ── MOBILE drawer ── */}
       {open && (
-        <div
-          className="lg:hidden fixed inset-0 z-50 flex"
-          onClick={() => setOpen(false)}
-        >
-          {/* Backdrop */}
+        <div className="lg:hidden fixed inset-0 z-50 flex" onClick={() => setOpen(false)}>
           <div className="absolute inset-0 bg-black/50" />
-
-          {/* Drawer */}
           <aside
             className="relative w-72 h-full bg-gray-900 text-white flex flex-col z-10"
             onClick={(e) => e.stopPropagation()}
